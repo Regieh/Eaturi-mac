@@ -4,190 +4,176 @@
 //
 //  Created on 15/05/25.
 //
-import Foundation
 import SwiftUI
 import SwiftData
-import Combine
 
 class FoodViewModel: ObservableObject {
-    @Published var allItems: [FoodModel] = []
+    @Published var foods: [FoodModel] = []
     @Published var filteredItems: [FoodModel] = []
-    @Published var popularItems: [FoodModel] = []
-    @Published var categories: [String] = []
-    @Published var selectedCategory: String? = nil
-    
-    private var cancellables = Set<AnyCancellable>()
-    
-    init() {
-        loadData()
+    private let categoryViewModel = CategoryViewModel()
+    private let modelContext: ModelContext
+
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
         
-        // Update filtered items whenever selected category changes
-        $selectedCategory
-            .sink { [weak self] category in
-                guard let self = self else { return }
-                self.filterItemsByCategory(category)
+        // Check if we need to populate the database
+        checkAndPopulateDatabase()
+        
+        // Load foods from the database
+        loadFoodsFromContext()
+    }
+    
+    /// Check if database needs to be populated and do it only once
+    private func checkAndPopulateDatabase() {
+        let fetchDescriptor = FetchDescriptor<FoodModel>()
+        do {
+            let existingFoods = try modelContext.fetch(fetchDescriptor)
+            if existingFoods.isEmpty {
+                // Database is empty, populate it
+                let sampleFoods = loadSampleData()
+                for food in sampleFoods {
+                    modelContext.insert(food)
+                }
+                try modelContext.save()
+                print("Database populated with: \(sampleFoods.map { $0.name })")
+            } else {
+                print("Database already contains \(existingFoods.count) food items, not repopulating")
             }
-            .store(in: &cancellables)
-    }
-    
-    func loadData() {
-        // In a real app, you would load this from SwiftData
-        // This is a mock implementation
-        let mockItems = generateMockData()
-        self.allItems = mockItems
-        self.filteredItems = mockItems
-        
-        // Extract unique categories
-        let allCategories = mockItems.flatMap { $0.categories }
-        self.categories = Array(Set(allCategories)).sorted()
-        
-        // Filter popular items
-        self.popularItems = mockItems.filter { $0.isPopular }
-    }
-    
-    func searchItems(query: String) {
-        if query.isEmpty {
-            filterItemsByCategory(selectedCategory)
-            return
-        }
-        
-        let searchResults = allItems.filter { item in
-            let matchesCategory = selectedCategory == nil || item.categories.contains(selectedCategory!)
-            let matchesQuery = item.name.lowercased().contains(query.lowercased()) ||
-                               item.categories.joined(separator: " ").lowercased().contains(query.lowercased())
-            
-            return matchesCategory && matchesQuery
-        }
-        
-        self.filteredItems = searchResults
-    }
-    
-    func filterItemsByCategory(_ category: String?) {
-        if let category = category {
-            self.filteredItems = allItems.filter { $0.categories.contains(category) }
-        } else {
-            self.filteredItems = allItems
+        } catch {
+            print("Error checking database: \(error)")
         }
     }
     
-    func selectCategory(_ category: String?) {
-        self.selectedCategory = category
-    }
-    
-    private func generateMockData() -> [FoodModel] {
+    /// Returns an array of sample FoodModel instances to populate the database.
+    private func loadSampleData() -> [FoodModel] {
         return [
             FoodModel(
-                name: "Grilled Salmon",
-                image: "salmon_image",
-                price: 1500,
-                calories: 367,
-                protein: 32,
-                carbs: 0,
-                fiber: 0,
-                fat: 22,
-                isPopular: true,
-                categories: ["Seafood", "Dinner"],
-                availableDays: ["Monday", "Wednesday", "Friday"],
-                foodDescription: "Fresh Atlantic salmon grilled to perfection with lemon and herbs."
-            ),
-            FoodModel(
-                name: "Pancakes",
-                image: "pancake_image",
-                price: 899,
-                calories: 450,
-                protein: 10,
-                carbs: 65,
-                fiber: 2,
+                name: "Grilled Chicken Salad",
+                foodDescription: "Fresh grilled chicken breast on a bed of mixed greens with cherry tomatoes, cucumber, and balsamic vinaigrette.",
+                price: 12.0,
+                calories: 350,
+                protein: 30,
+                carbs: 15,
                 fat: 12,
-                isPopular: true,
-                categories: ["Breakfast"],
-                availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-                foodDescription: "Fluffy pancakes served with maple syrup and fresh berries."
+                image: "ayam_bakar",
+                category: "Salad",
+                popular: true,
+                isVegan: false,
+                isHealthy: true,
+                isLowCalorie: true,
+                availableDays: ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"]
             ),
             FoodModel(
-                name: "Caesar Salad",
-                image: "caesar_salad_image",
-                price: 750,
-                calories: 320,
-                protein: 15,
-                carbs: 12,
-                fiber: 5,
-                fat: 22,
-                isPopular: false,
-                categories: ["Salad", "Lunch"],
-                availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-                foodDescription: "Crisp romaine lettuce with Caesar dressing, croutons, and parmesan cheese."
+                name: "Vegetable Stir Fry",
+                foodDescription: "Colorful mix of fresh vegetables stir-fried in a savory sauce served with steamed rice.",
+                price: 10.0,
+                calories: 280,
+                protein: 12,
+                carbs: 35,
+                fat: 10,
+                image: "ayam_bakar",
+                category: "Vegan",
+                popular: false,
+                isVegan: true,
+                isHealthy: true,
+                isLowCalorie: true,
+                availableDays: ["Senin", "Rabu", "Kamis", "Jumat"]
             ),
             FoodModel(
                 name: "Beef Burger",
-                image: "burger_image",
-                price: 1200,
+                foodDescription: "Juicy beef patty with lettuce, tomato, cheese, and special sauce on a brioche bun. Served with fries.",
+                price: 15.0,
                 calories: 650,
                 protein: 35,
-                carbs: 40,
-                fiber: 3,
+                carbs: 45,
                 fat: 38,
-                isPopular: true,
-                categories: ["Lunch", "Dinner"],
-                availableDays: ["Tuesday", "Thursday", "Saturday", "Sunday"],
-                foodDescription: "Juicy beef patty with cheese, lettuce, tomato, and special sauce on a brioche bun."
+                image: "ayam_bakar",
+                category: "Burger",
+                popular: true,
+                isVegan: false,
+                isHealthy: false,
+                isLowCalorie: false,
+                availableDays: ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"]
             ),
             FoodModel(
-                name: "Margherita Pizza",
-                image: "pizza_image",
-                price: 1300,
-                calories: 850,
-                protein: 28,
-                carbs: 98,
-                fiber: 4,
-                fat: 22,
-                isPopular: true,
-                categories: ["Italian", "Dinner"],
-                availableDays: ["Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-                foodDescription: "Classic pizza with tomato sauce, fresh mozzarella, and basil."
-            ),
-            FoodModel(
-                name: "Avocado Toast",
-                image: "avocado_toast_image",
-                price: 950,
-                calories: 380,
-                protein: 12,
-                carbs: 35,
-                fiber: 8,
-                fat: 22,
-                isPopular: false,
-                categories: ["Breakfast", "Vegetarian"],
-                availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-                foodDescription: "Toasted artisan bread topped with smashed avocado, salt, pepper, and red pepper flakes."
-            ),
-            FoodModel(
-                name: "Chicken Stir Fry",
-                image: "stir_fry_image",
-                price: 1100,
+                name: "Quinoa Bowl",
+                foodDescription: "Protein-packed quinoa bowl with roasted vegetables, avocado, and tahini dressing.",
+                price: 14.0,
                 calories: 420,
-                protein: 38,
-                carbs: 30,
-                fiber: 6,
-                fat: 12,
-                isPopular: true,
-                categories: ["Asian", "Dinner"],
-                availableDays: ["Monday", "Wednesday", "Friday"],
-                foodDescription: "Tender chicken breast with mixed vegetables in a savory sauce served over rice."
+                protein: 15,
+                carbs: 60,
+                fat: 15,
+                image: "ayam_bakar",
+                category: "Vegan",
+                popular: false,
+                isVegan: true,
+                isHealthy: true,
+                isLowCalorie: false,
+                availableDays: ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"]
             ),
             FoodModel(
-                name: "Greek Yogurt Parfait",
-                image: "yogurt_image",
-                price: 650,
-                calories: 280,
-                protein: 18,
-                carbs: 30,
-                fiber: 4,
-                fat: 8,
-                isPopular: false,
-                categories: ["Breakfast", "Vegetarian"],
-                availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-                foodDescription: "Creamy Greek yogurt layered with granola and fresh berries."
+                name: "Salmon Fillet",
+                foodDescription: "Oven-baked salmon fillet with lemon and herbs, served with steamed vegetables.",
+                price: 18.0,
+                calories: 380,
+                protein: 40,
+                carbs: 5,
+                fat: 22,
+                image: "ayam_bakar",
+                category: "Protein",
+                popular: true,
+                isVegan: false,
+                isHealthy: true,
+                isLowCalorie: false,
+                availableDays: ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"]
             )
         ]
+    }
+
+    /// Loads all FoodModel instances from the model context into the foods array.
+    func loadFoodsFromContext() {
+        let fetchDescriptor = FetchDescriptor<FoodModel>()
+        do {
+            foods = try modelContext.fetch(fetchDescriptor)
+            filteredItems = foods
+            print("Loaded \(foods.count) foods from context")
+        } catch {
+            print("Error loading foods: \(error)")
+        }
+    }
+
+    /// Filters food items based on a search query.
+    func searchItems(query: String) {
+        if query.isEmpty {
+            filteredItems = foods
+        } else {
+            filteredItems = foods.filter {
+                $0.name.lowercased().contains(query.lowercased()) ||
+                $0.category.lowercased().contains(query.lowercased())
+            }
+        }
+    }
+
+    /// Filters food items by category or special attributes (Healthy, Vegan, Low-calorie).
+    func filterByCategory(category: String?) {
+        if category == nil || category == "All" {
+            filteredItems = foods
+        } else {
+            filteredItems = foods.filter {
+                $0.category.lowercased() == category!.lowercased() ||
+                (category == "Healthy" && $0.isHealthy) ||
+                (category == "Vegan" && $0.isVegan) ||
+                (category == "Low-calorie" && $0.isLowCalorie)
+            }
+        }
+    }
+
+    func getPopularItems() -> [FoodModel] {
+        return foods.filter { $0.popular }
+    }
+    
+    /// Returns a list of available categories.
+    var categories: [String] {
+        ["All"] + categoryViewModel.categories.map { $0.name }
     }
 }

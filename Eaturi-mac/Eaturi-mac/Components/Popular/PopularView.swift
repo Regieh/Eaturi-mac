@@ -5,131 +5,154 @@
 //  Created by Raphael Gregorius on 09/05/25.
 //
 import SwiftUI
-
-struct NutrientLabel: View {
-    let icon: String
-    let value: String
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundColor(color)
-            Text(value)
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-        }
-    }
-}
+import SwiftData
 
 struct PopularView: View {
     @ObservedObject var viewModel: FoodViewModel
     @ObservedObject var contentViewModel: ContentViewModel
+    @ObservedObject var cartViewModel: CartViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Popular")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                
-                Spacer()
-                
-                Button("See All") {
-                    // Action to see all popular items
-                }
-                .font(.subheadline)
-                .foregroundColor(.blue)
-            }
+        VStack(alignment: .leading) {
+            Text("Popular Items")
+                .font(.title2)
+                .fontWeight(.bold)
+                .padding(.bottom, 8)
             
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 16) {
-                    ForEach(viewModel.popularItems) { item in
-                        PopularCardView(item: item, isAvailable: isItemAvailable(item))
-                            .onTapGesture {
-                                contentViewModel.navigateToFoodDetail(food: item)
-                            }
+                HStack(spacing: 16) {
+                    ForEach(viewModel.getPopularItems()) { food in
+                        PopularFoodCard(
+                            food: food,
+                            contentViewModel: contentViewModel,
+                            cartViewModel: cartViewModel
+                        )
                     }
                 }
                 .padding(.bottom, 8)
             }
         }
-    }
-    
-    private func isItemAvailable(_ item: FoodModel) -> Bool {
-        let today = Calendar.current.component(.weekday, from: Date())
-        let weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-        let todayString = weekdays[today - 1]
-        return item.availableDays.contains(todayString)
+        .padding(.horizontal)
     }
 }
 
-struct PopularCardView: View {
-    let item: FoodModel
-    var isAvailable: Bool = true
+struct PopularFoodCard: View {
+    let food: FoodModel
+    let contentViewModel: ContentViewModel
+    let cartViewModel: CartViewModel
+    @State private var showAddedToCart = false
+    @State private var isHovering = false
     
     var body: some View {
-        HStack(spacing: 12) {
-            Image(item.image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 70, height: 70)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+        VStack(alignment: .leading, spacing: 0) {
+            // Image container
+            ZStack(alignment: .bottomLeading) {
+                if let imageName = food.image {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 220, height: 160)
+                        .clipped()
+                } else {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 220, height: 160)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 60, height: 60)
+                                .foregroundColor(.gray)
+                        )
+                }
+                
+                // Popular tag
+                Text("Popular")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.red)
+                    .foregroundColor(.white)
+                    .cornerRadius(6)
+                    .padding(10)
+            }
+            .frame(width: 220, height: 160)
+            .cornerRadius(12, corners: [.topLeft, .topRight])
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.name)
-                    .font(.body)
-                    .fontWeight(.medium)
+                Text(food.name)
+                    .font(.headline)
                     .lineLimit(1)
+                    .padding(.top, 8)
                 
-                // Calories
-                HStack(spacing: 4) {
-                    Image(systemName: "flame.fill")
-                        .font(.subheadline)
-                        .foregroundColor(.orange)
-                    Text("\(item.calories) kcal")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.top, 2)
+                Text("$\(String(format: "%.2f", food.price))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
                 
-                // Price
-                HStack(spacing: 8) {
-                    Text("$\(item.price)")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
+                HStack {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        
+                        Text("\(food.calories) cal")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    // Quick add to cart button
+                    Button(action: {
+                        cartViewModel.addToCart(food: food)
+                        showAddedToCart = true
+                        
+                        // Hide notification after 2 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            showAddedToCart = false
+                        }
+                    }) {
+                        Image(systemName: "cart.badge.plus")
+                            .font(.system(size: 16))
+                            .foregroundColor(.blue)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .padding(4)
             }
-            .padding(.trailing, 8)
+            .padding(12)
+            .background(Color(.windowBackgroundColor))
         }
-        .padding(12)
-        .background(Color.white)
-        .cornerRadius(16)
+        .frame(width: 220)
+        .background(Color(.windowBackgroundColor))
+        .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
-        .frame(width: 200, height: 100)
-        .grayscale(isAvailable ? 0 : 1)
-        .opacity(isAvailable ? 1 : 0.7)
-        .padding(4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+        )
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .scaleEffect(isHovering ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3), value: isHovering)
+        .onTapGesture {
+            contentViewModel.navigateToFood(food)
+        }
         .overlay(
             Group {
-                if !isAvailable {
-                    VStack {
-                        Spacer()
-                        Text("Not Available Today")
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.6))
-                            .cornerRadius(8)
-                            .padding(.bottom, 8)
-                    }
+                if showAddedToCart {
+                    Text("Added to cart")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(6)
+                        .background(Color.green)
+                        .cornerRadius(6)
+                        .transition(.scale.combined(with: .opacity))
+                        .padding(6)
                 }
-            }
+            },
+            alignment: .topTrailing
         )
     }
 }

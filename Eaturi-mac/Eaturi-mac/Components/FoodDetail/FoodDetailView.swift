@@ -4,192 +4,176 @@
 //
 //  Created on 15/05/25.
 //
+
 import SwiftUI
+import SwiftData
 
 struct FoodDetailView: View {
     let food: FoodModel
-    @ObservedObject var contentViewModel: ContentViewModel
+    let contentViewModel: ContentViewModel
+    let cartViewModel: CartViewModel
     @State private var quantity = 1
+    @State private var showAddedToCart = false
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Image and basic info
-                HStack(spacing: 20) {
-                    Image(food.image)
+            VStack(alignment: .leading, spacing: 20) {
+                // Food image (placeholder)
+                let _ = print("Debug - FoodDetailView image for \(food.name): \(food.image ?? "nil")")
+                if let imageName = food.image, !imageName.isEmpty {
+                    Image(imageName)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 300, height: 200)
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 300)
                         .cornerRadius(12)
-                        .clipped()
-                    
-                    VStack(alignment: .leading, spacing: 12) {
+                        .onAppear {
+                            print("Debug - DetailView attempting to load image: \(imageName)")
+                        }
+                        .background(Color.gray.opacity(0.1)) // Background to see boundaries
+                } else {
+                    Image(systemName: "photo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 300)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(12)
+                        .onAppear {
+                            print("Debug - DetailView using placeholder for \(food.name)")
+                        }
+                }
+                
+                // Food details
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
                         Text(food.name)
                             .font(.largeTitle)
                             .fontWeight(.bold)
                         
-                        Text(food.categories.joined(separator: ", "))
-                            .font(.title3)
-                            .foregroundColor(.secondary)
+                        Spacer()
                         
-                        HStack {
-                            Image(systemName: "flame.fill")
-                                .foregroundColor(.orange)
-                            Text("\(food.calories) calories")
-                                .fontWeight(.medium)
-                        }
-                        
-                        Text("$\(food.price)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.top, 8)
+                        Text("$\(String(format: "%.2f", food.price))")
+                            .font(.title)
+                            .fontWeight(.semibold)
                     }
-                }
-                
-                Divider()
-                
-                // Nutrition Information
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Nutrition Information")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                    
-                    HStack(spacing: 20) {
-                        NutritionItem(title: "Protein", value: "\(food.protein)g", icon: "fiberbundle.fill", color: .blue)
-                        NutritionItem(title: "Carbs", value: "\(food.carbs)g", icon: "chart.pie.fill", color: .green)
-                        NutritionItem(title: "Fiber", value: "\(food.fiber)g", icon: "leaf.fill", color: .green)
-                        NutritionItem(title: "Fat", value: "\(food.fat)g", icon: "drop.fill", color: .yellow)
-                    }
-                }
-                
-                Divider()
-                
-                // Description
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Description")
-                        .font(.title3)
-                        .fontWeight(.bold)
                     
                     Text(food.foodDescription)
                         .font(.body)
                         .foregroundColor(.secondary)
-                }
-                
-                Divider()
-                
-                // Availability
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Available Days")
-                        .font(.title3)
-                        .fontWeight(.bold)
+                        .padding(.vertical, 8)
                     
-                    HStack(spacing: 8) {
-                        ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { day in
-                            let isAvailable = isDayAvailable(shortDay: day)
-                            Text(day)
-                                .font(.subheadline)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(isAvailable ? Color.blue : Color.gray.opacity(0.2))
-                                .foregroundColor(isAvailable ? .white : .gray)
-                                .cornerRadius(6)
+                    Text(food.category)
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(20)
+                    
+                    Divider()
+                    
+                    // Nutrition information
+                    Text("Nutrition Information")
+                        .font(.headline)
+                        .padding(.bottom, 4)
+
+                    HStack(spacing: 12) {
+                        NutritionItem(value: "\(food.calories)", unit: "cal")
+                        Divider().frame(height: 16)
+                        
+                        NutritionItem(value: "\(food.protein)g", unit: "protein")
+                        Divider().frame(height: 16)
+                        
+                        NutritionItem(value: "\(food.carbs)g", unit: "carbs")
+                        Divider().frame(height: 16)
+                        
+                        NutritionItem(value: "\(food.fat)g", unit: "fat")
+                    }
+
+                    Divider()
+                    
+                    // Available days
+                    if !food.availableDays.isEmpty {
+                        Text("Available on")
+                            .font(.headline)
+                            .padding(.bottom, 4)
+                        
+                        HStack {
+                            ForEach(food.availableDays, id: \.self) { day in
+                                Text(day)
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.green.opacity(0.1))
+                                    .foregroundColor(.green)
+                                    .cornerRadius(20)
+                            }
+                            
+                            Spacer()
                         }
                     }
-                }
-                
-                Divider()
-                
-                // Order section
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Order")
-                        .font(.title3)
-                        .fontWeight(.bold)
                     
-                    HStack(spacing: 16) {
-                        // Quantity Stepper
-                        HStack {
-                            Text("Quantity:")
-                                .fontWeight(.medium)
-                            
-                            Button(action: {
-                                if quantity > 1 {
-                                    quantity -= 1
-                                }
-                            }) {
-                                Image(systemName: "minus.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.blue)
-                            }
-                            .buttonStyle(.borderless)
-                            
-                            Text("\(quantity)")
-                                .font(.title3)
-                                .fontWeight(.bold)
-                                .frame(minWidth: 30)
-                                .multilineTextAlignment(.center)
-                            
-                            Button(action: {
-                                quantity += 1
-                            }) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.blue)
-                            }
-                            .buttonStyle(.borderless)
-                        }
+                    // Add to cart section
+                    HStack {
+                        // Quantity stepper
+                        Stepper("Quantity: \(quantity)", value: $quantity, in: 1...10)
                         
                         Spacer()
                         
-                        // Total price
-                        Text("Total: $\(food.price * quantity)")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                        
                         // Add to cart button
                         Button(action: {
-                            // Add to cart logic here
+                            cartViewModel.addToCart(food: food, quantity: quantity)
+                            showAddedToCart = true
+                            
+                            // Hide the notification after 2 seconds
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                showAddedToCart = false
+                            }
                         }) {
                             Text("Add to Cart")
-                                .font(.headline)
                                 .fontWeight(.semibold)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
                                 .foregroundColor(.white)
+                                .padding()
                                 .background(Color.blue)
-                                .cornerRadius(8)
+                                .cornerRadius(10)
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(PlainButtonStyle())
                     }
+                    .padding(.top, 16)
+                }
+                .padding()
+            }
+        }
+        .overlay(
+            // Added to cart notification
+            VStack {
+                if showAddedToCart {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Added to cart!")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .padding()
-        }
+            .animation(.easeInOut, value: showAddedToCart)
+            .padding(.top, 20),
+            alignment: .top
+        )
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button(action: {
+                Button {
                     contentViewModel.navigateToDashboard()
-                }) {
-                    Image(systemName: "chevron.left")
-                    Text("Back to Dashboard")
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
                 }
             }
         }
-    }
-    
-    private func isDayAvailable(shortDay: String) -> Bool {
-        let dayMap = [
-            "Sun": "Sunday",
-            "Mon": "Monday",
-            "Tue": "Tuesday",
-            "Wed": "Wednesday",
-            "Thu": "Thursday",
-            "Fri": "Friday",
-            "Sat": "Saturday"
-        ]
-        
-        if let fullDay = dayMap[shortDay] {
-            return food.availableDays.contains(fullDay)
-        }
-        return false
     }
 }
